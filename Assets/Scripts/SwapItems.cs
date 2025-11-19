@@ -7,7 +7,7 @@ public class SwapItems : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        ActivateObject(1);
+        ActivateObject(0);
     }
 
     /// <summary>
