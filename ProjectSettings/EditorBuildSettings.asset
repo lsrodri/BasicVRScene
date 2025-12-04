@@ -12,6 +12,9 @@ EditorBuildSettings:
     path: Assets/jewelry_shop/DemoScene/demo.unity
     guid: 6f08b06d4ab3def46ab2933c1f4deb53
   - enabled: 1
+    path: Assets/Scenes/VRExperimentStartScene.unity
+    guid: b999ebad65de8d84ab5b6ee113b0ea89
+  - enabled: 1
     path: Assets/Scenes/ItemDisplay.unity
     guid: 69baa903276f89b47a03822c8fa1a33d
   m_configObjects:
