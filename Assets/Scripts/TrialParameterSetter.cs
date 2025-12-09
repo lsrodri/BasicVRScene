@@ -25,7 +25,7 @@ public class TrialParameterSetter : MonoBehaviour
         }
         else
         {
-            WarningText.text += $"Invalid Participant ID: '{ParticipantIDText.text}'. ";
+            WarningText.text += $"Invalid Participant: '{ParticipantIDText.text}'. ";
             isValid = false;
         }
 
@@ -35,7 +35,7 @@ public class TrialParameterSetter : MonoBehaviour
         }
         else
         {
-            WarningText.text += $"Invalid Trial Number: '{TrialNumberText.text}'. ";
+            WarningText.text += $"Invalid Trial: '{TrialNumberText.text}'. ";
             isValid = false;
         }
 
