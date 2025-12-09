@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 
-public class RwtrievePlayerPrefs : MonoBehaviour
+public class RetrievePlayerPrefs : MonoBehaviour
 {
     public TMP_Text textDisplay;
     public string playerPrefKeyOne = "ParticipantID";
@@ -13,7 +13,7 @@ public class RwtrievePlayerPrefs : MonoBehaviour
         string participantIDText = GetPlayerPrefValue(playerPrefKeyOne);
         string trialNumberText = GetPlayerPrefValue(playerPrefKeyTwo);
 
-        textDisplay.text = $"PID: '{participantIDText}'. Trial: {trialNumberText}";
+        textDisplay.text = $"PID: {participantIDText}. Trial: {trialNumberText}";
     }
 
     private string GetPlayerPrefValue(string key)
