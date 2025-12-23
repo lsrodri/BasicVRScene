@@ -5812,7 +5812,7 @@ MonoBehaviour:
   ParticipantIDText: {fileID: 806326945}
   TrialNumberText: {fileID: 1997988661}
   WarningText: {fileID: 1993796439}
-  ExperimentSceneName: ItemDisplay
+  ExperimentSceneName: Experiment
 --- !u!4 &1032122059
 Transform:
   m_ObjectHideFlags: 0
