@@ -57,7 +57,6 @@ public class TrialDataLogger : MonoBehaviour
 
     void OnDestroy()
     {
-        // Cleanup: End any ongoing trial logging
         if (isLoggingTrial)
         {
             Debug.LogWarning("[TrialDataLogger] Ending trial logging on destroy");
@@ -123,7 +122,6 @@ public class TrialDataLogger : MonoBehaviour
             return;
         }
 
-        // Build header list
         List<string> headers = new List<string>();
 
         // Add all trial data columns from CSV
@@ -142,10 +140,8 @@ public class TrialDataLogger : MonoBehaviour
         if (logTrialDuration)
             headers.Add("TrialDuration_Seconds");
 
-        // Add custom columns
         headers.AddRange(customColumns);
 
-        // Initialize CSV file
         csvWriter.InitializeFile(headers, trialController.CurrentParticipantID);
 
         Debug.Log($"[TrialDataLogger] CSV initialized: {csvWriter.GetCurrentFilePath()}");

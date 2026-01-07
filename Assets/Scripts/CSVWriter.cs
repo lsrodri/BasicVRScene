@@ -43,7 +43,6 @@ public class CSVWriter : MonoBehaviour
         Debug.Log($"[CSVWriter] saveToDesktopInEditor: {saveToDesktopInEditor}");
         Debug.Log($"[CSVWriter] useExternalStorageOnAndroid: {useExternalStorageOnAndroid}");
 
-        // Try to find debug display if not assigned
         if (debugDisplay == null)
         {
             debugDisplay = FindObjectOfType<TrialDebugDisplay>();
@@ -68,7 +67,6 @@ public class CSVWriter : MonoBehaviour
         string testPath = GetSaveDirectory();
         LogMessage($"Save directory: {testPath}");
 
-        // Test write permissions
         TestWritePermissions();
     }
 
@@ -130,7 +128,6 @@ public class CSVWriter : MonoBehaviour
             Debug.Log($"[CSVWriter] Android: using internal app storage");
         }
 #elif UNITY_EDITOR || UNITY_STANDALONE
-        // PC Editor or PC Standalone build
         Debug.Log("[CSVWriter] Platform: EDITOR or STANDALONE");
         Debug.Log($"[CSVWriter] saveToDesktopInEditor = {saveToDesktopInEditor}");
 
@@ -156,7 +153,6 @@ public class CSVWriter : MonoBehaviour
         }
         else
         {
-            // Use persistent data path
             basePath = Application.persistentDataPath;
             Debug.Log($"[CSVWriter] PC/Editor: using persistent path");
         }
@@ -202,7 +198,7 @@ public class CSVWriter : MonoBehaviour
             Debug.LogError($"[CSVWriter] Exception type: {e.GetType().Name}");
             Debug.LogError($"[CSVWriter] Stack trace: {e.StackTrace}");
             Debug.LogError($"[CSVWriter] Falling back to base path: {basePath}");
-            return basePath; // Fall back to base path
+            return basePath;
         }
 
         Debug.Log($"[CSVWriter] Final save directory: {experimentDataPath}");
@@ -234,11 +230,9 @@ public class CSVWriter : MonoBehaviour
         headers = new List<string>(columnHeaders);
         LogMessage($"Headers count: {headers.Count}");
 
-        // Get save directory
         string saveDirectory = GetSaveDirectory();
         LogMessage($"Save dir: {saveDirectory}");
 
-        // Generate filename
         string fileName = GenerateFileName(participantID);
         LogMessage($"Filename: {fileName}");
 
@@ -247,19 +241,16 @@ public class CSVWriter : MonoBehaviour
 
         try
         {
-            // Check if file already exists
             bool fileExists = File.Exists(currentFilePath);
             LogMessage($"File exists: {fileExists}");
 
             if (!fileExists)
             {
-                // Write headers to new file
                 string headerLine = FormatCSVLine(headers);
                 LogMessage($"Writing headers: {headerLine}");
 
                 File.WriteAllText(currentFilePath, headerLine + "\n");
 
-                // Verify file was created
                 if (File.Exists(currentFilePath))
                 {
                     FileInfo fi = new FileInfo(currentFilePath);
@@ -332,7 +323,6 @@ public class CSVWriter : MonoBehaviour
             string line = FormatCSVLine(rowData);
             File.AppendAllText(currentFilePath, line + "\n");
 
-            // Verify write
             FileInfo fi = new FileInfo(currentFilePath);
             LogMessage($"[OK] Row written. File: {fi.Length} bytes");
         }
@@ -490,7 +480,6 @@ public class CSVWriter : MonoBehaviour
         LogMessage("CSV writer reset");
     }
 
-    // Logging helper methods
     private void LogMessage(string message)
     {
         string fullMessage = $"[CSV] {message}";

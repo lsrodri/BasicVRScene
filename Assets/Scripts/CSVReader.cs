@@ -179,7 +179,7 @@ public class CSVReader : MonoBehaviour
                 if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
                 {
                     currentField += '"';
-                    i++; // Skip next quote
+                    i++;
                 }
                 else
                 {
@@ -258,7 +258,6 @@ public class CSVReader : MonoBehaviour
         return Rows[rowIndex];
     }
 
-    // Logging helper methods
     private void LogMessage(string message)
     {
         if (debugDisplay != null)

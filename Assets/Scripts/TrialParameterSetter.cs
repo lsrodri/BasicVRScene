@@ -18,11 +18,8 @@ public class TrialParameterSetter : MonoBehaviour
             ParticipantIDText.text = PlayerPrefs.GetInt("ParticipantID").ToString();
         }
         
-        // Always default trial number to 1 unless explicitly set
-        TrialNumberText.text = "1";
     }
 
-    // This method gets called by your button's OnClick event
     public void OnSubmitButtonClicked()
     {
         // Clear previous warnings
@@ -30,7 +27,6 @@ public class TrialParameterSetter : MonoBehaviour
 
         bool isValid = true;
 
-        // Get all values at once when button is clicked
         if (int.TryParse(ParticipantIDText.text, out int participantID))
         {
             Debug.Log($"Participant ID: {participantID}");
@@ -55,10 +51,9 @@ public class TrialParameterSetter : MonoBehaviour
         {
             WarningText.text = "Set";
 
-            // IMPORTANT: Force save the trial number (overwrites any old value)
             PlayerPrefs.SetInt("ParticipantID", participantID);
             PlayerPrefs.SetInt("TrialNumber", trialNumber);
-            PlayerPrefs.Save(); // Explicitly save to ensure it's written
+            PlayerPrefs.Save();
             
             Debug.Log($"[TrialParameterSetter] Saved: PID={participantID}, Trial={trialNumber}");
 

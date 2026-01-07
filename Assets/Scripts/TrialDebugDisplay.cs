@@ -134,10 +134,8 @@ public class TrialDebugDisplay : MonoBehaviour
         sb.AppendLine($"Progress: {trialController.GetTrialProgress()}");
         sb.AppendLine();
         
-        // SHOW ACTUAL SAVE LOCATION from CSVWriter
         sb.AppendLine("=== DATA LOCATION ===");
         
-        // Get the ACTUAL save path from CSVWriter (respects platform-specific settings)
         CSVWriter csvWriter = FindObjectOfType<CSVWriter>();
         if (csvWriter != null)
         {

@@ -179,10 +179,8 @@ public class TrialController : MonoBehaviour
             return;
         }
 
-        // Update available trials for this participant
         UpdateAvailableTrials(participantID);
 
-        // Find matching row
         int matchingRowIndex = FindMatchingRow(participantID, trialNumber);
 
         if (matchingRowIndex == -1)
@@ -195,7 +193,6 @@ public class TrialController : MonoBehaviour
         // Update current trial index in the available trials list
         currentTrialIndex = availableTrialNumbers.IndexOf(trialNumber);
 
-        // Load the trial data
         LoadTrialDataFromRow(matchingRowIndex, participantID, trialNumber);
     }
 
@@ -236,7 +233,6 @@ public class TrialController : MonoBehaviour
             }
         }
 
-        // Sort trial numbers for sequential progression
         availableTrialNumbers.Sort();
 
         Debug.Log($"Found {availableTrialNumbers.Count} trials for ParticipantID {participantID}");
@@ -276,7 +272,6 @@ public class TrialController : MonoBehaviour
     /// </summary>
     public void LoadNextTrialButton()
     {
-        // CRITICAL: End logging for current trial BEFORE loading next
         TrialDataLogger logger = FindObjectOfType<TrialDataLogger>();
         if (logger != null && logger.IsLogging())
         {
@@ -290,7 +285,6 @@ public class TrialController : MonoBehaviour
         {
             Debug.Log("All trials completed for this participant!");
 
-            // CRITICAL: Save the LAST trial
             if (logger != null && logger.IsLogging())
             {
                 Debug.Log("[TrialController] Saving final trial");
@@ -533,7 +527,6 @@ public class TrialController : MonoBehaviour
             return;
         }
 
-        // Activate new stimulus
         stimulus.SetActive(true);
         currentActiveStimulus = stimulus;
 
@@ -546,7 +539,6 @@ public class TrialController : MonoBehaviour
     /// </summary>
     private GameObject FindStimulusGameObject(string stimulusID)
     {
-        // Option 1: Search within a specific container (more efficient)
         if (stimulusContainer != null)
         {
             Debug.Log($"[TrialController] Searching for '{stimulusID}' in container '{stimulusContainer.name}'");
@@ -576,7 +568,6 @@ public class TrialController : MonoBehaviour
             return null;
         }
 
-        // Option 2: Search entire scene (less efficient but more flexible)
         GameObject stimulus = GameObject.Find(stimulusID);
 
         if (stimulus == null)
