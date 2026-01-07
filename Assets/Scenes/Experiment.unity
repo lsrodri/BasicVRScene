@@ -11513,8 +11513,13 @@ MonoBehaviour:
   participantIDColumn: ParticipantID
   trialNumberColumn: TrialNumber
   loadOnStart: 1
+  overrideParticipantID: -1
+  overrideTrialNumber: -1
   stimulusContainer: {fileID: 2095272858}
   stimulusIDColumn: StimulusID
+  OnTrialLoaded:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &1456668507
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11530,6 +11535,7 @@ MonoBehaviour:
   trialController: {fileID: 1456668506}
   csvWriter: {fileID: 1625917943}
   autoInitialize: 1
+  autoLogTrials: 1
   customColumns: []
   logTrialStartTime: 1
   logTrialEndTime: 1
@@ -13175,6 +13181,9 @@ MonoBehaviour:
   baseFileName: trial_data
   includeTimestamp: 1
   includeParticipantID: 1
+  saveToDesktopInEditor: 0
+  useExternalStorageOnAndroid: 0
+  debugDisplay: {fileID: 1724659684}
 --- !u!114 &1625917944
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13190,6 +13199,7 @@ MonoBehaviour:
   csvFileName: Trials.csv
   hasHeader: 1
   loadOnStart: 1
+  debugDisplay: {fileID: 0}
 --- !u!4 &1625917945
 Transform:
   m_ObjectHideFlags: 0
@@ -14237,8 +14247,10 @@ MonoBehaviour:
   trialController: {fileID: 1456668506}
   debugDisplay: {fileID: 527545512}
   statusDisplay: {fileID: 692966811}
+  logDisplay: {fileID: 0}
   updateContinuously: 0
   updateOnStart: 1
+  maxLogMessages: 20
   showFieldNames: 1
   separator: ': '
 --- !u!1 &1731886490

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System;
 
@@ -11,24 +11,27 @@ public class TrialDataLogger : MonoBehaviour
     [Header("References")]
     [Tooltip("Reference to the TrialController")]
     public TrialController trialController;
-    
+
     [Tooltip("Reference to the CSVWriter")]
     public CSVWriter csvWriter;
 
     [Header("Logging Configuration")]
     [Tooltip("Automatically initialize CSV file when first trial loads?")]
     public bool autoInitialize = true;
-    
+
+    [Tooltip("Automatically log trials when they load?")]
+    public bool autoLogTrials = true;
+
     [Tooltip("Additional custom columns to include in the CSV")]
     public List<string> customColumns = new List<string>();
 
     [Header("Automatic Timestamps")]
     [Tooltip("Log trial start time?")]
     public bool logTrialStartTime = true;
-    
+
     [Tooltip("Log trial end time?")]
     public bool logTrialEndTime = true;
-    
+
     [Tooltip("Log trial duration?")]
     public bool logTrialDuration = true;
 
@@ -36,12 +39,63 @@ public class TrialDataLogger : MonoBehaviour
     private DateTime trialStartTime;
     private Dictionary<string, string> currentRowData = new Dictionary<string, string>();
     private bool isLoggingTrial = false;
+    private bool hasInitialized = false;
 
     void Start()
     {
-        if (autoInitialize && trialController != null && trialController.IsTrialLoaded)
+        // Subscribe to trial loaded event for automatic logging
+        if (trialController != null && autoLogTrials)
+        {
+            trialController.OnTrialLoaded.AddListener(OnTrialLoaded);
+            Debug.Log("[TrialDataLogger] Subscribed to OnTrialLoaded event");
+        }
+        else if (trialController == null)
+        {
+            Debug.LogError("[TrialDataLogger] TrialController reference not set!");
+        }
+    }
+
+    void OnDestroy()
+    {
+        // Cleanup: End any ongoing trial logging
+        if (isLoggingTrial)
+        {
+            Debug.LogWarning("[TrialDataLogger] Ending trial logging on destroy");
+            EndTrialLogging();
+        }
+
+        // Unsubscribe from events
+        if (trialController != null)
+        {
+            trialController.OnTrialLoaded.RemoveListener(OnTrialLoaded);
+        }
+    }
+
+    /// <summary>
+    /// Called automatically when a trial is loaded via OnTrialLoaded event.
+    /// </summary>
+    private void OnTrialLoaded()
+    {
+        Debug.Log("[TrialDataLogger] OnTrialLoaded event received");
+
+        // Initialize CSV on first trial
+        if (!hasInitialized && autoInitialize)
         {
             InitializeCSVFile();
+            hasInitialized = true;
+        }
+
+        // End previous trial if still logging
+        if (isLoggingTrial)
+        {
+            Debug.LogWarning("[TrialDataLogger] Previous trial still logging - ending it now");
+            EndTrialLogging();
+        }
+
+        // Start logging the new trial
+        if (autoLogTrials)
+        {
+            StartTrialLogging();
         }
     }
 
@@ -53,13 +107,19 @@ public class TrialDataLogger : MonoBehaviour
     {
         if (csvWriter == null)
         {
-            Debug.LogError("CSVWriter reference not set");
+            Debug.LogError("[TrialDataLogger] CSVWriter reference not set");
             return;
         }
 
         if (trialController == null)
         {
-            Debug.LogError("TrialController reference not set");
+            Debug.LogError("[TrialDataLogger] TrialController reference not set");
+            return;
+        }
+
+        if (!trialController.IsTrialLoaded)
+        {
+            Debug.LogError("[TrialDataLogger] No trial loaded - cannot initialize CSV");
             return;
         }
 
@@ -67,21 +127,18 @@ public class TrialDataLogger : MonoBehaviour
         List<string> headers = new List<string>();
 
         // Add all trial data columns from CSV
-        if (trialController.IsTrialLoaded)
+        foreach (var key in trialController.CurrentTrialData.Keys)
         {
-            foreach (var key in trialController.CurrentTrialData.Keys)
-            {
-                headers.Add(key);
-            }
+            headers.Add(key);
         }
 
         // Add timestamp columns
         if (logTrialStartTime)
             headers.Add("TrialStartTime");
-        
+
         if (logTrialEndTime)
             headers.Add("TrialEndTime");
-        
+
         if (logTrialDuration)
             headers.Add("TrialDuration_Seconds");
 
@@ -90,8 +147,9 @@ public class TrialDataLogger : MonoBehaviour
 
         // Initialize CSV file
         csvWriter.InitializeFile(headers, trialController.CurrentParticipantID);
-        
-        Debug.Log($"CSV file initialized at: {csvWriter.GetCurrentFilePath()}");
+
+        Debug.Log($"[TrialDataLogger] CSV initialized: {csvWriter.GetCurrentFilePath()}");
+        Debug.Log($"[TrialDataLogger] Headers: {string.Join(", ", headers)}");
     }
 
     /// <summary>
@@ -101,7 +159,14 @@ public class TrialDataLogger : MonoBehaviour
     {
         if (!csvWriter.IsInitialized())
         {
+            Debug.LogWarning("[TrialDataLogger] CSV not initialized - initializing now");
             InitializeCSVFile();
+        }
+
+        if (!csvWriter.IsInitialized())
+        {
+            Debug.LogError("[TrialDataLogger] Failed to initialize CSV - cannot start logging");
+            return;
         }
 
         currentRowData.Clear();
@@ -123,17 +188,26 @@ public class TrialDataLogger : MonoBehaviour
             currentRowData["TrialStartTime"] = trialStartTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
         }
 
-        Debug.Log($"Started logging trial: PID={trialController.CurrentParticipantID}, Trial={trialController.CurrentTrialNumber}");
+        Debug.Log($"[TrialDataLogger] Started logging - PID={trialController.CurrentParticipantID}, Trial={trialController.CurrentTrialNumber}");
+        Debug.Log($"[TrialDataLogger] Data fields captured: {currentRowData.Count}");
     }
 
     /// <summary>
     /// Ends trial logging and writes the data to CSV.
+    /// Call this from a button or when the trial completes.
     /// </summary>
     public void EndTrialLogging()
     {
         if (!isLoggingTrial)
         {
-            Debug.LogWarning("No trial logging in progress");
+            Debug.LogWarning("[TrialDataLogger] No trial logging in progress");
+            return;
+        }
+
+        if (!csvWriter.IsInitialized())
+        {
+            Debug.LogError("[TrialDataLogger] CSV not initialized - cannot write data");
+            isLoggingTrial = false;
             return;
         }
 
@@ -151,12 +225,15 @@ public class TrialDataLogger : MonoBehaviour
             currentRowData["TrialDuration_Seconds"] = duration.TotalSeconds.ToString("F3");
         }
 
+        Debug.Log($"[TrialDataLogger] Ending trial logging - Duration={duration.TotalSeconds:F3}s");
+        Debug.Log($"[TrialDataLogger] Writing row with {currentRowData.Count} fields");
+
         // Write to CSV
         csvWriter.WriteRow(currentRowData);
-        
+
         isLoggingTrial = false;
-        
-        Debug.Log($"Trial data logged: Duration={duration.TotalSeconds:F3}s");
+
+        Debug.Log($"[TrialDataLogger] ✓ Trial data written to: {csvWriter.GetCurrentFilePath()}");
     }
 
     /// <summary>
@@ -167,11 +244,12 @@ public class TrialDataLogger : MonoBehaviour
     {
         if (!isLoggingTrial)
         {
-            Debug.LogWarning("No trial logging in progress. Call StartTrialLogging() first.");
+            Debug.LogWarning("[TrialDataLogger] No trial logging in progress. Call StartTrialLogging() first.");
             return;
         }
 
         currentRowData[fieldName] = value;
+        Debug.Log($"[TrialDataLogger] Set custom field: {fieldName} = {value}");
     }
 
     /// <summary>
@@ -207,6 +285,14 @@ public class TrialDataLogger : MonoBehaviour
     public void SetCustomField(string fieldName, bool value)
     {
         SetCustomField(fieldName, value.ToString());
+    }
+
+    /// <summary>
+    /// Gets whether a trial is currently being logged.
+    /// </summary>
+    public bool IsLogging()
+    {
+        return isLoggingTrial;
     }
 
     /// <summary>

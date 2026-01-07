@@ -13,30 +13,30 @@ public class TrialDebugDisplay : MonoBehaviour
     [Header("References")]
     [Tooltip("Reference to the TrialController")]
     public TrialController trialController;
-    
+
     [Tooltip("TextMeshPro component to display debug info")]
     public TMP_Text debugDisplay;
-    
+
     [Tooltip("TextMeshPro component to display status messages (completion, errors, etc.)")]
     public TMP_Text statusDisplay;
-    
+
     [Tooltip("TextMeshPro component to display system logs (CSV loading, file operations, etc.)")]
     public TMP_Text logDisplay;
 
     [Header("Display Settings")]
     [Tooltip("Update display every frame?")]
     public bool updateContinuously = false;
-    
+
     [Tooltip("Update display on Start?")]
     public bool updateOnStart = true;
-    
+
     [Tooltip("Maximum number of log messages to keep")]
     public int maxLogMessages = 20;
 
     [Header("Formatting")]
     [Tooltip("Show field names in the display?")]
     public bool showFieldNames = true;
-    
+
     [Tooltip("Character to use between field name and value")]
     public string separator = ": ";
 
@@ -45,10 +45,39 @@ public class TrialDebugDisplay : MonoBehaviour
 
     void Start()
     {
+        // Subscribe to trial loaded event
+        if (trialController != null)
+        {
+            trialController.OnTrialLoaded.AddListener(OnTrialDataLoaded);
+            Debug.Log("[TrialDebugDisplay] Subscribed to OnTrialLoaded event");
+        }
+        else
+        {
+            Debug.LogError("[TrialDebugDisplay] TrialController reference is null!");
+        }
+
         if (updateOnStart)
         {
             UpdateDisplay();
         }
+    }
+
+    void OnDestroy()
+    {
+        // Unsubscribe to prevent memory leaks
+        if (trialController != null)
+        {
+            trialController.OnTrialLoaded.RemoveListener(OnTrialDataLoaded);
+        }
+    }
+
+    /// <summary>
+    /// Called when trial data is loaded via the OnTrialLoaded event.
+    /// </summary>
+    private void OnTrialDataLoaded()
+    {
+        Debug.Log("[TrialDebugDisplay] OnTrialDataLoaded() event triggered");
+        UpdateDisplay();
     }
 
     void Update()
@@ -105,10 +134,52 @@ public class TrialDebugDisplay : MonoBehaviour
         sb.AppendLine($"Progress: {trialController.GetTrialProgress()}");
         sb.AppendLine();
         
-        // SHOW SAVE LOCATION
+        // SHOW ACTUAL SAVE LOCATION from CSVWriter
         sb.AppendLine("=== DATA LOCATION ===");
-        sb.AppendLine($"Save Path:");
-        sb.AppendLine($"{Application.persistentDataPath}");
+        
+        // Get the ACTUAL save path from CSVWriter (respects platform-specific settings)
+        CSVWriter csvWriter = FindObjectOfType<CSVWriter>();
+        if (csvWriter != null)
+        {
+            string actualSavePath = csvWriter.GetSaveDirectory();
+            sb.AppendLine($"Save Path:");
+            sb.AppendLine($"{actualSavePath}");
+            
+            // Show which storage type is being used
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (csvWriter.useExternalStorageOnAndroid)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Storage: External (USB accessible)");
+                sb.AppendLine($"Access: Connect device via USB");
+            }
+            else
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Storage: Internal app storage");
+                sb.AppendLine($"Access: Requires adb or file manager");
+            }
+#elif UNITY_EDITOR || UNITY_STANDALONE
+            if (csvWriter.saveToDesktopInEditor)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Storage: Desktop (development mode)");
+            }
+            else
+            {
+                sb.AppendLine();
+                sb.AppendLine($"Storage: Persistent data path");
+            }
+#endif
+        }
+        else
+        {
+            // Fallback if CSVWriter not found
+            sb.AppendLine($"Save Path:");
+            sb.AppendLine($"{Application.persistentDataPath}");
+            sb.AppendLine();
+            sb.AppendLine($"[WARNING] CSVWriter not found!");
+        }
         sb.AppendLine();
         
         sb.AppendLine("=== TRIAL DATA ===");
@@ -222,17 +293,17 @@ public class TrialDebugDisplay : MonoBehaviour
         string timestamp = System.DateTime.Now.ToString("HH:mm:ss");
         string prefix = GetLogPrefix(logType);
         string formattedMessage = $"[{timestamp}] {prefix}{message}";
-        
+
         logMessages.Enqueue(formattedMessage);
-        
+
         // Keep only the last N messages
         while (logMessages.Count > maxLogMessages)
         {
             logMessages.Dequeue();
         }
-        
+
         UpdateLogDisplay();
-        
+
         // Also log to Unity console for Editor debugging
         switch (logType)
         {
@@ -271,15 +342,15 @@ public class TrialDebugDisplay : MonoBehaviour
     {
         if (logDisplay == null)
             return;
-        
+
         StringBuilder sb = new StringBuilder();
         sb.AppendLine("=== SYSTEM LOG ===");
-        
+
         foreach (string message in logMessages)
         {
             sb.AppendLine(message);
         }
-        
+
         logDisplay.text = sb.ToString();
     }
 
@@ -309,12 +380,12 @@ public class TrialDebugDisplay : MonoBehaviour
         sb.AppendLine();
         sb.AppendLine($"Data Path:");
         sb.AppendLine($"{Application.dataPath}");
-        
+
         if (debugDisplay != null)
         {
             debugDisplay.text = sb.ToString();
         }
-        
+
         AddLog("Debug paths displayed");
     }
 
@@ -325,12 +396,12 @@ public class TrialDebugDisplay : MonoBehaviour
     {
         ClearLogs();
         AddLog("=== CSV FILE VERIFICATION ===", LogType.Log);
-        
+
         // Check input CSV in StreamingAssets
         string inputPath = Path.Combine(Application.streamingAssetsPath, "Trials.csv");
         AddLog($"Input CSV: {inputPath}", LogType.Log);
-        
-        #if !UNITY_ANDROID || UNITY_EDITOR
+
+#if !UNITY_ANDROID || UNITY_EDITOR
         if (File.Exists(inputPath))
         {
             FileInfo inputInfo = new FileInfo(inputPath);
@@ -340,21 +411,21 @@ public class TrialDebugDisplay : MonoBehaviour
         {
             AddLog("[FAIL] Input CSV not found!", LogType.Error);
         }
-        #else
+#else
         AddLog("Cannot check file existence on Android", LogType.Warning);
-        #endif
-        
+#endif
+
         // Check output directory
         string outputDir = "/sdcard/Documents/ExperimentData";
         AddLog($"Output dir: {outputDir}", LogType.Log);
-        
+
         if (Directory.Exists(outputDir))
         {
             AddLog("[OK] Output directory exists", LogType.Log);
-            
+
             string[] files = Directory.GetFiles(outputDir, "*.csv");
             AddLog($"Found {files.Length} CSV files:", LogType.Log);
-            
+
             foreach (string file in files)
             {
                 FileInfo fileInfo = new FileInfo(file);

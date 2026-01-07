@@ -10,6 +10,18 @@ public class TrialParameterSetter : MonoBehaviour
     public TMP_Text WarningText;
     public string ExperimentSceneName;
 
+    void Start()
+    {
+        // Pre-populate with current PlayerPrefs values if they exist
+        if (PlayerPrefs.HasKey("ParticipantID"))
+        {
+            ParticipantIDText.text = PlayerPrefs.GetInt("ParticipantID").ToString();
+        }
+        
+        // Always default trial number to 1 unless explicitly set
+        TrialNumberText.text = "1";
+    }
+
     // This method gets called by your button's OnClick event
     public void OnSubmitButtonClicked()
     {
@@ -43,10 +55,12 @@ public class TrialParameterSetter : MonoBehaviour
         {
             WarningText.text = "Set";
 
-            // Use Participant ID and Trial Number as PlayerPrefs
+            // IMPORTANT: Force save the trial number (overwrites any old value)
             PlayerPrefs.SetInt("ParticipantID", participantID);
             PlayerPrefs.SetInt("TrialNumber", trialNumber);
-
+            PlayerPrefs.Save(); // Explicitly save to ensure it's written
+            
+            Debug.Log($"[TrialParameterSetter] Saved: PID={participantID}, Trial={trialNumber}");
 
             // Check if ExperimentSceneName is set
             if (string.IsNullOrEmpty(ExperimentSceneName))

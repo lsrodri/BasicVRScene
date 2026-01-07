@@ -14,16 +14,19 @@ public class CSVWriter : MonoBehaviour
     [Header("CSV Configuration")]
     [Tooltip("Base filename for the CSV (extension will be added automatically)")]
     public string baseFileName = "trial_data";
-    
+
     [Tooltip("Include timestamp in filename?")]
     public bool includeTimestamp = true;
-    
+
     [Tooltip("Include ParticipantID in filename?")]
     public bool includeParticipantID = true;
 
-    [Header("Android/Quest Settings")]
-    [Tooltip("Use external storage (SDCard) on Android? Makes files accessible via SideQuest")]
-    public bool useExternalStorage = true;
+    [Header("Platform-Specific Settings")]
+    [Tooltip("Save to Desktop when running in Editor or PC builds? (Easier access during testing)")]
+    public bool saveToDesktopInEditor = true;
+
+    [Tooltip("Android: Save to external storage (accessible via USB)? If false, uses internal storage.")]
+    public bool useExternalStorageOnAndroid = true;
 
     [Header("Debug Display")]
     [Tooltip("Reference to TrialDebugDisplay for showing logs in VR")]
@@ -34,37 +37,176 @@ public class CSVWriter : MonoBehaviour
     private List<string> headers = new List<string>();
     private bool fileInitialized = false;
 
+    void Awake()
+    {
+        Debug.Log("[CSVWriter] ========== AWAKE ==========");
+        Debug.Log($"[CSVWriter] saveToDesktopInEditor: {saveToDesktopInEditor}");
+        Debug.Log($"[CSVWriter] useExternalStorageOnAndroid: {useExternalStorageOnAndroid}");
+
+        // Try to find debug display if not assigned
+        if (debugDisplay == null)
+        {
+            debugDisplay = FindObjectOfType<TrialDebugDisplay>();
+            if (debugDisplay == null)
+            {
+                Debug.LogWarning("[CSVWriter] TrialDebugDisplay not found. Logs will only show in Unity Console.");
+            }
+        }
+    }
+
+    void Start()
+    {
+        Debug.Log("[CSVWriter] ========== START ==========");
+        LogMessage("=== CSV WRITER STARTED ===");
+        LogMessage($"Platform: {Application.platform}");
+        LogMessage($"Base filename: {baseFileName}");
+        LogMessage($"Timestamp: {includeTimestamp}");
+        LogMessage($"Include PID: {includeParticipantID}");
+        LogMessage($"saveToDesktopInEditor: {saveToDesktopInEditor}");
+        LogMessage($"useExternalStorageOnAndroid: {useExternalStorageOnAndroid}");
+
+        string testPath = GetSaveDirectory();
+        LogMessage($"Save directory: {testPath}");
+
+        // Test write permissions
+        TestWritePermissions();
+    }
+
+    /// <summary>
+    /// Tests if we have write permissions to the target directory.
+    /// </summary>
+    private void TestWritePermissions()
+    {
+        try
+        {
+            string testDir = GetSaveDirectory();
+            string testFile = Path.Combine(testDir, "_test_write.txt");
+
+            LogMessage("Testing write permissions...");
+            LogMessage($"Test file path: {testFile}");
+
+            File.WriteAllText(testFile, "test");
+
+            if (File.Exists(testFile))
+            {
+                File.Delete(testFile);
+                LogMessage("[OK] Write permissions verified");
+            }
+            else
+            {
+                LogError("[FAIL] Test file not created");
+            }
+        }
+        catch (Exception e)
+        {
+            LogError($"[FAIL] Write test failed: {e.Message}");
+            LogError($"Exception type: {e.GetType().Name}");
+            LogError($"Stack trace: {e.StackTrace}");
+        }
+    }
+
     /// <summary>
     /// Gets the directory where CSV files are saved.
+    /// Platform-specific logic for Desktop, Editor, and Android.
     /// </summary>
     public string GetSaveDirectory()
     {
-        #if UNITY_ANDROID && !UNITY_EDITOR
-        if (useExternalStorage)
+        string basePath;
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        // Android build (Quest/standalone Android app)
+        Debug.Log("[CSVWriter] Platform: ANDROID BUILD");
+        if (useExternalStorageOnAndroid)
         {
-            // Use external storage (SDCard) - accessible via SideQuest
-            string externalPath = "/sdcard/Documents/ExperimentData";
-            
-            // Try to create directory if it doesn't exist
+            // Use external storage - accessible via USB when device is connected
+            // This is /storage/emulated/0/ or /sdcard/
+            basePath = "/storage/emulated/0/Documents";
+            Debug.Log($"[CSVWriter] Android: using external storage (USB accessible)");
+        }
+        else
+        {
+            // Use internal app storage - only accessible via adb or file manager apps
+            basePath = Application.persistentDataPath;
+            Debug.Log($"[CSVWriter] Android: using internal app storage");
+        }
+#elif UNITY_EDITOR || UNITY_STANDALONE
+        // PC Editor or PC Standalone build
+        Debug.Log("[CSVWriter] Platform: EDITOR or STANDALONE");
+        Debug.Log($"[CSVWriter] saveToDesktopInEditor = {saveToDesktopInEditor}");
+
+        if (saveToDesktopInEditor)
+        {
+            // Save to Desktop for easy access during development
             try
             {
-                if (!Directory.Exists(externalPath))
+                basePath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                Debug.Log($"[CSVWriter] ✓ Desktop path: {basePath}");
+
+                if (string.IsNullOrEmpty(basePath))
                 {
-                    Directory.CreateDirectory(externalPath);
-                    LogMessage($"Created directory: {externalPath}");
+                    Debug.LogError("[CSVWriter] Desktop path is NULL or empty! Falling back to persistentDataPath");
+                    basePath = Application.persistentDataPath;
                 }
-                return externalPath;
             }
             catch (Exception e)
             {
-                LogError($"Failed to create external directory: {e.Message}");
-                LogMessage("Falling back to internal storage");
-                return Application.persistentDataPath;
+                Debug.LogError($"[CSVWriter] Failed to get Desktop path: {e.Message}");
+                basePath = Application.persistentDataPath;
             }
         }
-        #endif
-        
-        return Application.persistentDataPath;
+        else
+        {
+            // Use persistent data path
+            basePath = Application.persistentDataPath;
+            Debug.Log($"[CSVWriter] PC/Editor: using persistent path");
+        }
+#else
+        // Fallback for other platforms (iOS, WebGL, etc.)
+        Debug.Log("[CSVWriter] Platform: OTHER");
+        basePath = Application.persistentDataPath;
+        Debug.Log($"[CSVWriter] Other platform: using persistent path");
+#endif
+
+        Debug.Log($"[CSVWriter] Base path resolved to: '{basePath}'");
+
+        if (string.IsNullOrEmpty(basePath))
+        {
+            Debug.LogError("[CSVWriter] CRITICAL: Base path is NULL or empty!");
+            basePath = Application.persistentDataPath;
+            Debug.LogError($"[CSVWriter] Emergency fallback to: {basePath}");
+        }
+
+        // Create subdirectory for experiment data
+        string experimentDataPath;
+
+        try
+        {
+            experimentDataPath = Path.Combine(basePath, "ExperimentData");
+            Debug.Log($"[CSVWriter] Attempting to create directory: {experimentDataPath}");
+
+            if (!Directory.Exists(experimentDataPath))
+            {
+                DirectoryInfo dirInfo = Directory.CreateDirectory(experimentDataPath);
+                Debug.Log($"[CSVWriter] ✓ Created directory: {dirInfo.FullName}");
+                Debug.Log($"[CSVWriter] Directory exists check: {Directory.Exists(experimentDataPath)}");
+            }
+            else
+            {
+                Debug.Log($"[CSVWriter] ✓ Directory already exists: {experimentDataPath}");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[CSVWriter] ✗ Failed to create ExperimentData directory!");
+            Debug.LogError($"[CSVWriter] Error: {e.Message}");
+            Debug.LogError($"[CSVWriter] Exception type: {e.GetType().Name}");
+            Debug.LogError($"[CSVWriter] Stack trace: {e.StackTrace}");
+            Debug.LogError($"[CSVWriter] Falling back to base path: {basePath}");
+            return basePath; // Fall back to base path
+        }
+
+        Debug.Log($"[CSVWriter] Final save directory: {experimentDataPath}");
+        return experimentDataPath;
     }
 
     /// <summary>
@@ -80,31 +222,31 @@ public class CSVWriter : MonoBehaviour
     /// </summary>
     public void InitializeFile(List<string> columnHeaders, int participantID = -1)
     {
+        Debug.Log("[CSVWriter] ========== INITIALIZE FILE ==========");
+        LogMessage("=== INITIALIZING CSV FILE ===");
+
+        if (columnHeaders == null || columnHeaders.Count == 0)
+        {
+            LogError("[FAIL] No headers provided!");
+            return;
+        }
+
         headers = new List<string>(columnHeaders);
-        
+        LogMessage($"Headers count: {headers.Count}");
+
         // Get save directory
         string saveDirectory = GetSaveDirectory();
-        
+        LogMessage($"Save dir: {saveDirectory}");
+
         // Generate filename
         string fileName = GenerateFileName(participantID);
-        currentFilePath = Path.Combine(saveDirectory, fileName);
+        LogMessage($"Filename: {fileName}");
 
-        LogMessage($"=== CSV INITIALIZATION ===");
-        LogMessage($"Platform: {Application.platform}");
-        LogMessage($"Save Directory: {saveDirectory}");
-        LogMessage($"File Name: {fileName}");
-        LogMessage($"Full Path: {currentFilePath}");
+        currentFilePath = Path.Combine(saveDirectory, fileName);
+        LogMessage($"Full path: {currentFilePath}");
 
         try
         {
-            // Ensure directory exists
-            string directory = Path.GetDirectoryName(currentFilePath);
-            if (!Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-                LogMessage($"Created directory: {directory}");
-            }
-
             // Check if file already exists
             bool fileExists = File.Exists(currentFilePath);
             LogMessage($"File exists: {fileExists}");
@@ -113,22 +255,52 @@ public class CSVWriter : MonoBehaviour
             {
                 // Write headers to new file
                 string headerLine = FormatCSVLine(headers);
+                LogMessage($"Writing headers: {headerLine}");
+
                 File.WriteAllText(currentFilePath, headerLine + "\n");
-                LogMessage($"[OK] CSV initialized: {headers.Count} columns");
-                LogMessage($"Headers: {string.Join(", ", headers)}");
+
+                // Verify file was created
+                if (File.Exists(currentFilePath))
+                {
+                    FileInfo fi = new FileInfo(currentFilePath);
+                    LogMessage($"[OK] File created: {fi.Length} bytes");
+                    LogMessage($"[OK] Full path: {fi.FullName}");
+                }
+                else
+                {
+                    LogError("[FAIL] File not created!");
+                }
             }
             else
             {
-                LogMessage("[OK] CSV exists, will append data");
+                FileInfo fi = new FileInfo(currentFilePath);
+                LogMessage($"[OK] File exists: {fi.Length} bytes");
             }
 
             fileInitialized = true;
             LogMessage("[OK] CSV ready for writing");
+            Debug.Log($"[CSVWriter] ✓✓✓ CSV INITIALIZED SUCCESSFULLY ✓✓✓");
+        }
+        catch (UnauthorizedAccessException e)
+        {
+            LogError($"[FAIL] Permission denied: {e.Message}");
+            fileInitialized = false;
+        }
+        catch (DirectoryNotFoundException e)
+        {
+            LogError($"[FAIL] Directory not found: {e.Message}");
+            fileInitialized = false;
+        }
+        catch (IOException e)
+        {
+            LogError($"[FAIL] IO error: {e.Message}");
+            fileInitialized = false;
         }
         catch (Exception e)
         {
-            LogError($"[FAIL] CSV init failed: {e.Message}");
-            LogError($"Stack trace: {e.StackTrace}");
+            LogError($"[FAIL] Unexpected error: {e.Message}");
+            LogError($"Type: {e.GetType().Name}");
+            LogError($"Stack: {e.StackTrace}");
             fileInitialized = false;
         }
     }
@@ -140,24 +312,34 @@ public class CSVWriter : MonoBehaviour
     {
         if (!fileInitialized)
         {
-            LogError("[FAIL] CSV not initialized");
+            LogError("[FAIL] CSV not initialized! Call InitializeFile() first");
+            return;
+        }
+
+        if (rowData == null)
+        {
+            LogError("[FAIL] Row data is null!");
             return;
         }
 
         if (rowData.Count != headers.Count)
         {
-            LogWarning($"[WARN] Column mismatch: {rowData.Count}/{headers.Count}");
+            LogWarning($"[WARN] Column count: {rowData.Count}/{headers.Count}");
         }
 
         try
         {
             string line = FormatCSVLine(rowData);
             File.AppendAllText(currentFilePath, line + "\n");
-            LogMessage($"[OK] Row written ({rowData.Count} fields)");
+
+            // Verify write
+            FileInfo fi = new FileInfo(currentFilePath);
+            LogMessage($"[OK] Row written. File: {fi.Length} bytes");
         }
         catch (Exception e)
         {
             LogError($"[FAIL] Write failed: {e.Message}");
+            LogError($"Type: {e.GetType().Name}");
         }
     }
 
@@ -172,8 +354,14 @@ public class CSVWriter : MonoBehaviour
             return;
         }
 
+        if (rowData == null)
+        {
+            LogError("[FAIL] Row data is null!");
+            return;
+        }
+
         List<string> orderedData = new List<string>();
-        
+
         foreach (string header in headers)
         {
             if (rowData.TryGetValue(header, out string value))
@@ -183,6 +371,7 @@ public class CSVWriter : MonoBehaviour
             else
             {
                 orderedData.Add("");
+                LogWarning($"[WARN] Missing field: {header}");
             }
         }
 
@@ -256,21 +445,30 @@ public class CSVWriter : MonoBehaviour
 
     /// <summary>
     /// Opens the save directory in the system's file explorer.
-    /// Useful for debugging and accessing saved files.
+    /// Only works on Desktop platforms.
     /// </summary>
     public void OpenSaveDirectory()
     {
         string path = GetSaveDirectory();
-        
-        #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));
-        #elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        try
+        {
+            System.Diagnostics.Process.Start("explorer.exe", path.Replace("/", "\\"));
+            Debug.Log($"[CSVWriter] Opened file explorer: {path}");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[CSVWriter] Failed to open file explorer: {e.Message}");
+        }
+#elif UNITY_EDITOR_OSX || UNITY_STANDALONE_OSX
         System.Diagnostics.Process.Start("open", path);
-        #elif UNITY_EDITOR_LINUX || UNITY_STANDALONE_LINUX
+#elif UNITY_EDITOR_LINUX || UNITY_STANDALONE_LINUX
         System.Diagnostics.Process.Start("xdg-open", path);
-        #else
-        LogMessage($"Save directory: {path}");
-        #endif
+#else
+        LogMessage($"[Android/Other] Cannot open file explorer. Save directory: {path}");
+        LogMessage($"On Android, connect device via USB and browse to this path");
+#endif
     }
 
     /// <summary>
@@ -295,28 +493,37 @@ public class CSVWriter : MonoBehaviour
     // Logging helper methods
     private void LogMessage(string message)
     {
+        string fullMessage = $"[CSV] {message}";
+
         if (debugDisplay != null)
         {
-            debugDisplay.AddLog($"[CSV] {message}", LogType.Log);
+            debugDisplay.AddLog(fullMessage, LogType.Log);
         }
+
         Debug.Log($"[CSVWriter] {message}");
     }
 
     private void LogWarning(string message)
     {
+        string fullMessage = $"[CSV] {message}";
+
         if (debugDisplay != null)
         {
-            debugDisplay.AddLog($"[CSV] {message}", LogType.Warning);
+            debugDisplay.AddLog(fullMessage, LogType.Warning);
         }
+
         Debug.LogWarning($"[CSVWriter] {message}");
     }
 
     private void LogError(string message)
     {
+        string fullMessage = $"[CSV] {message}";
+
         if (debugDisplay != null)
         {
-            debugDisplay.AddLog($"[CSV] {message}", LogType.Error);
+            debugDisplay.AddLog(fullMessage, LogType.Error);
         }
+
         Debug.LogError($"[CSVWriter] {message}");
     }
 }

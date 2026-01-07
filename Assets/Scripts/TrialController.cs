@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -11,16 +12,23 @@ public class TrialController : MonoBehaviour
     [Header("References")]
     [Tooltip("Reference to the CSVReader component")]
     public CSVReader csvReader;
-    
+
     [Header("Configuration")]
     [Tooltip("Name of the ParticipantID column in CSV")]
     public string participantIDColumn = "ParticipantID";
-    
+
     [Tooltip("Name of the TrialNumber column in CSV")]
     public string trialNumberColumn = "TrialNumber";
-    
+
     [Tooltip("Load trial data on Start?")]
     public bool loadOnStart = true;
+
+    [Header("Debug Override")]
+    [Tooltip("Override ParticipantID (set to -1 to use PlayerPrefs)")]
+    public int overrideParticipantID = -1;
+
+    [Tooltip("Override TrialNumber (set to -1 to use PlayerPrefs)")]
+    public int overrideTrialNumber = -1;
 
     [Header("Stimulus Management")]
     [Tooltip("Parent GameObject containing all stimulus objects")]
@@ -29,12 +37,19 @@ public class TrialController : MonoBehaviour
     [Tooltip("Name of the StimulusID column in CSV")]
     public string stimulusIDColumn = "StimulusID";
 
+    // Event triggered when trial data is loaded
+    [System.Serializable]
+    public class TrialLoadedEvent : UnityEvent { }
+
+    [Header("Events")]
+    public TrialLoadedEvent OnTrialLoaded = new TrialLoadedEvent();
+
     // Public properties for accessing current trial data
     public bool IsTrialLoaded { get; private set; } = false;
     public int CurrentParticipantID { get; private set; } = -1;
     public int CurrentTrialNumber { get; private set; } = -1;
     public Dictionary<string, string> CurrentTrialData { get; private set; } = new Dictionary<string, string>();
-    
+
     // Track currently active stimulus
     private GameObject currentActiveStimulus;
 
@@ -45,19 +60,30 @@ public class TrialController : MonoBehaviour
     void Start()
     {
         Debug.Log("[TrialController] Start() called");
-        
-        if (!PlayerPrefs.HasKey("ParticipantID"))
+
+        // Check for debug overrides
+        if (overrideParticipantID != -1)
+        {
+            Debug.LogWarning($"[TrialController] DEBUG OVERRIDE: ParticipantID = {overrideParticipantID}");
+            PlayerPrefs.SetInt("ParticipantID", overrideParticipantID);
+        }
+        else if (!PlayerPrefs.HasKey("ParticipantID"))
         {
             Debug.LogWarning("[TrialController] Setting TEST ParticipantID = 1");
             PlayerPrefs.SetInt("ParticipantID", 1);
         }
-        
-        if (!PlayerPrefs.HasKey("TrialNumber"))
+
+        if (overrideTrialNumber != -1)
+        {
+            Debug.LogWarning($"[TrialController] DEBUG OVERRIDE: TrialNumber = {overrideTrialNumber}");
+            PlayerPrefs.SetInt("TrialNumber", overrideTrialNumber);
+        }
+        else if (!PlayerPrefs.HasKey("TrialNumber"))
         {
             Debug.LogWarning("[TrialController] Setting TEST TrialNumber = 1");
             PlayerPrefs.SetInt("TrialNumber", 1);
         }
-        
+
         if (loadOnStart)
         {
             StartCoroutine(WaitForCSVAndLoadTrial());
@@ -71,18 +97,18 @@ public class TrialController : MonoBehaviour
     private System.Collections.IEnumerator WaitForCSVAndLoadTrial()
     {
         Debug.Log("[TrialController] Waiting for CSV to load...");
-        
+
         // Debug CSVReader reference
         if (csvReader == null)
         {
             Debug.LogError("[TrialController] CSVReader reference is NULL! Check Inspector.");
             yield break;
         }
-        
+
         Debug.Log($"[TrialController] CSVReader found: {csvReader.name}");
         Debug.Log($"[TrialController] CSVReader.csvFileName = '{csvReader.csvFileName}'");
         Debug.Log($"[TrialController] CSVReader.IsLoaded = {csvReader.IsLoaded}");
-        
+
         int waitFrames = 0;
         // Wait until CSV is loaded
         while (csvReader == null || !csvReader.IsLoaded)
@@ -92,20 +118,20 @@ public class TrialController : MonoBehaviour
             {
                 Debug.Log($"[TrialController] Still waiting for CSV... ({waitFrames} frames)");
             }
-            
+
             if (waitFrames > 300) // Timeout after ~5 seconds
             {
                 Debug.LogError("[TrialController] TIMEOUT: CSV never loaded. Check CSVReader component.");
                 yield break;
             }
-            
+
             yield return null;
         }
-        
+
         Debug.Log($"[TrialController] CSV loaded after {waitFrames} frames!");
         Debug.Log($"[TrialController] CSV has {csvReader.Rows.Count} rows");
         Debug.Log($"[TrialController] CSV headers: {string.Join(", ", csvReader.Headers)}");
-        
+
         // Now load the trial
         LoadTrialFromPlayerPrefs();
     }
@@ -116,7 +142,7 @@ public class TrialController : MonoBehaviour
     public void LoadTrialFromPlayerPrefs()
     {
         Debug.Log("[TrialController] LoadTrialFromPlayerPrefs() called");
-        
+
         if (!PlayerPrefs.HasKey("ParticipantID") || !PlayerPrefs.HasKey("TrialNumber"))
         {
             Debug.LogWarning("[TrialController] ParticipantID or TrialNumber not found in PlayerPrefs");
@@ -128,9 +154,9 @@ public class TrialController : MonoBehaviour
 
         int participantID = PlayerPrefs.GetInt("ParticipantID");
         int trialNumber = PlayerPrefs.GetInt("TrialNumber");
-        
+
         Debug.Log($"[TrialController] Loading: ParticipantID={participantID}, TrialNumber={trialNumber}");
-        
+
         LoadTrial(participantID, trialNumber);
     }
 
@@ -196,11 +222,11 @@ public class TrialController : MonoBehaviour
         for (int i = 0; i < csvReader.Rows.Count; i++)
         {
             List<string> row = csvReader.Rows[i];
-            
+
             if (row.Count <= pidColumnIndex || row.Count <= trialColumnIndex)
                 continue;
 
-            if (int.TryParse(row[pidColumnIndex], out int rowPID) && 
+            if (int.TryParse(row[pidColumnIndex], out int rowPID) &&
                 int.TryParse(row[trialColumnIndex], out int rowTrial))
             {
                 if (rowPID == participantID)
@@ -212,7 +238,7 @@ public class TrialController : MonoBehaviour
 
         // Sort trial numbers for sequential progression
         availableTrialNumbers.Sort();
-        
+
         Debug.Log($"Found {availableTrialNumbers.Count} trials for ParticipantID {participantID}");
     }
 
@@ -236,11 +262,11 @@ public class TrialController : MonoBehaviour
 
         int nextTrialNumber = availableTrialNumbers[currentTrialIndex + 1];
         LoadTrial(CurrentParticipantID, nextTrialNumber);
-        
+
         // Update PlayerPrefs to persist the new trial number
         PlayerPrefs.SetInt("TrialNumber", nextTrialNumber);
         PlayerPrefs.Save();
-        
+
         return true;
     }
 
@@ -250,12 +276,27 @@ public class TrialController : MonoBehaviour
     /// </summary>
     public void LoadNextTrialButton()
     {
+        // CRITICAL: End logging for current trial BEFORE loading next
+        TrialDataLogger logger = FindObjectOfType<TrialDataLogger>();
+        if (logger != null && logger.IsLogging())
+        {
+            Debug.Log("[TrialController] Ending trial logging before loading next trial");
+            logger.EndTrialLogging();
+        }
+
         bool success = LoadNextTrial();
-        
+
         if (!success && IsLastTrial())
         {
             Debug.Log("All trials completed for this participant!");
-            
+
+            // CRITICAL: Save the LAST trial
+            if (logger != null && logger.IsLogging())
+            {
+                Debug.Log("[TrialController] Saving final trial");
+                logger.EndTrialLogging();
+            }
+
             // Update debug display if available
             TrialDebugDisplay debugDisplay = FindObjectOfType<TrialDebugDisplay>();
             if (debugDisplay != null)
@@ -348,12 +389,12 @@ public class TrialController : MonoBehaviour
         for (int i = 0; i < csvReader.Rows.Count; i++)
         {
             List<string> row = csvReader.Rows[i];
-            
+
             if (row.Count <= pidColumnIndex || row.Count <= trialColumnIndex)
                 continue;
 
             // Try to parse both values
-            if (int.TryParse(row[pidColumnIndex], out int rowPID) && 
+            if (int.TryParse(row[pidColumnIndex], out int rowPID) &&
                 int.TryParse(row[trialColumnIndex], out int rowTrial))
             {
                 if (rowPID == participantID && rowTrial == trialNumber)
@@ -387,7 +428,10 @@ public class TrialController : MonoBehaviour
         IsTrialLoaded = true;
 
         Debug.Log($"Trial loaded successfully: PID={participantID}, Trial={trialNumber} ({CurrentTrialData.Count} fields) - {GetTrialProgress()}");
-        
+
+        // Trigger the event to notify listeners
+        OnTrialLoaded.Invoke();
+
         // Automatically activate the stimulus for this trial
         ActivateCurrentStimulus();
     }
@@ -454,7 +498,7 @@ public class TrialController : MonoBehaviour
 
         // Get StimulusID from current trial data
         string stimulusID = GetFieldValue(stimulusIDColumn);
-        
+
         if (string.IsNullOrEmpty(stimulusID))
         {
             Debug.LogWarning($"[TrialController] StimulusID not found in trial data");
@@ -492,7 +536,7 @@ public class TrialController : MonoBehaviour
         // Activate new stimulus
         stimulus.SetActive(true);
         currentActiveStimulus = stimulus;
-        
+
         Debug.Log($"[TrialController] Activated stimulus: {stimulusID}");
     }
 
@@ -507,19 +551,19 @@ public class TrialController : MonoBehaviour
         {
             Debug.Log($"[TrialController] Searching for '{stimulusID}' in container '{stimulusContainer.name}'");
             Debug.Log($"[TrialController] Container has {stimulusContainer.transform.childCount} children");
-            
+
             // List all children for debugging
             foreach (Transform child in stimulusContainer.transform)
             {
                 Debug.Log($"[TrialController] Found child: '{child.name}' (Length: {child.name.Length})");
-                
+
                 // Try exact match
                 if (child.name == stimulusID)
                 {
                     Debug.Log($"[TrialController] EXACT MATCH found: {child.name}");
                     return child.gameObject;
                 }
-                
+
                 // Try trimmed match
                 if (child.name.Trim() == stimulusID.Trim())
                 {
@@ -527,19 +571,19 @@ public class TrialController : MonoBehaviour
                     return child.gameObject;
                 }
             }
-            
+
             Debug.LogError($"[TrialController] Stimulus '{stimulusID}' not found in container '{stimulusContainer.name}'");
             return null;
         }
 
         // Option 2: Search entire scene (less efficient but more flexible)
         GameObject stimulus = GameObject.Find(stimulusID);
-        
+
         if (stimulus == null)
         {
             Debug.LogWarning($"[TrialController] Stimulus '{stimulusID}' not found in scene");
         }
-        
+
         return stimulus;
     }
 
@@ -559,7 +603,7 @@ public class TrialController : MonoBehaviour
         {
             child.gameObject.SetActive(false);
         }
-        
+
         currentActiveStimulus = null;
         Debug.Log($"[TrialController] Deactivated all stimuli in {stimulusContainer.name}");
     }
